@@ -13,6 +13,9 @@ param workSpaceName string = ''
 @description('Hostpool token expiration time')
 param tokenExpirationTime string
 
+@description('Resource ID of the Log Analytics workspace to send diagnostics to')
+param logAnalyticsWorkspaceId string
+
 param appGroupName string
 param servicesSubnetResourceId string
 param privateLinkZoneName string
@@ -45,6 +48,50 @@ resource hostpool 'Microsoft.DesktopVirtualization/hostPools@2024-04-08-preview'
 
     publicNetworkAccess: 'Disabled'
     managementType: 'Standard'
+  }
+}
+
+resource diagnostic 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'avd-hostpool-diagnostics'
+  scope: hostpool
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {
+        category: 'Checkpoint'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+      {
+        category: 'Error'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+      {
+        category: 'Management'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+        retentionPolicy: {
+          enabled: false
+          days: 0
+        }
+      }
+    ]
   }
 }
 
