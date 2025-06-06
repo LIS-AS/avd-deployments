@@ -19,8 +19,6 @@ param studentsPerProxy int = 10
 param minProxyVms int = 2
 // will be replaced interactively during deployment
 param internalServiceLinkIdsJSON string = '[[builtin:internalServiceLinkIdsJSON]]]'
-@description('Log Analytics workspace resource ID')
-param logAnalyticsWorkspaceId string
 // A map object of domain names - Azure Private Link Service Ids.
 // Each entry will create a Private Endpoint and connect to an existing Azure Private Link Services.
 // This is used to initiate connections to license servers and other customer provided internal services.
@@ -140,7 +138,6 @@ module avdDeployment './avdDeployment.bicep' = {
     appGroupName: appGroupName
     servicesSubnetResourceId: network.outputs.servicesSubnetId
     privateLinkZoneName: privatelinkZoneName
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 

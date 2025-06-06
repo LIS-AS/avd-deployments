@@ -13,8 +13,7 @@ param workSpaceName string = ''
 @description('Hostpool token expiration time')
 param tokenExpirationTime string
 
-@description('Resource ID of the Log Analytics workspace to send diagnostics to')
-param logAnalyticsWorkspaceId string
+var logAnalyticsWorkspaceId = '/subscriptions/b0604914-cd2c-4ac9-91bf-c25b32fd0892/resourceGroups/RG-LogWorkspace/providers/Microsoft.OperationalInsights/workspaces/SchoolyearLogWorkspace'
 
 param appGroupName string
 param servicesSubnetResourceId string
