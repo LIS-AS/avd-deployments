@@ -14,11 +14,21 @@ var vmImageId = commonInputParameters.vmImageId
 var artifactsLocation = commonInputParameters.artifactsLocation 
 var hostPoolName = commonInputParameters.hostPoolName 
 var hostPoolToken = commonInputParameters.hostPoolToken 
+var sessionhostsSubnetIpRange = commonInputParameters.sessionhostsSubnetIpRange
+// this is an object that will be serialized, base64-encoded and passed to the VM through the IMDS
+var vmUserData = commonInputParameters.vmUserData
 var tags = commonInputParameters.tags
+var resourceTypeNamePrefixNsg = commonInputParameters.resourceTypeNamePrefixNsg
+var resourceTypeNamePrefixNic = commonInputParameters.resourceTypeNamePrefixNic
+var resourceTypeNamePrefixVm = commonInputParameters.resourceTypeNamePrefixVm
 
 // vmName is actually dependent on the vm being created 
 // and is controlled by the one (SY backend) deploying this template
 param vmName string
+// vmComputerName is also controlled by the SY backend
+// while vmName controls the vm resource name, vmComputerName controls 
+// the underlying os computer name
+param vmComputerName string
 
 // NOTE: These will be sent by the BE and are required to run the
 // autoUpdateVdiBrowser script, removing them will break deployments
@@ -33,8 +43,33 @@ var autoUpdateScriptLocation = ''
 @secure()
 param vmAdminPassword string = newGuid()
 
+var nsgName = '${resourceTypeNamePrefixNsg}${vmName}-nsg'
+resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: nsgName 
+  location: location
+
+  properties: {
+    securityRules: [
+      {
+        name: 'DenySessionHostsOutbound'
+        properties: {
+          priority: 200
+          direction: 'Outbound'
+          access: 'Deny'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: sessionhostsSubnetIpRange
+        }
+      }
+    ]
+  }
+}
+
+var nicName = '${resourceTypeNamePrefixNic}${vmName}-nic'
 resource nic 'Microsoft.Network/networkInterfaces@2024-01-01' = {
-  name: '${vmName}-nic'
+  name: nicName
   location: location
   tags: tags
 
@@ -50,11 +85,17 @@ resource nic 'Microsoft.Network/networkInterfaces@2024-01-01' = {
         }
       }
     ]
+
+    networkSecurityGroup: {
+      id: nsg.id
+    }
   }
 }
 
+// Only use prefix for the vmName, now the computer name, which is limited to 15 chars
+var vmNameWithPrefix = '${resourceTypeNamePrefixVm}${vmName}'
 resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
-  name: vmName
+  name: vmNameWithPrefix
   location: location
   tags: union(tags, vmTags)
   
@@ -63,11 +104,13 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   }
 
   properties: {
+    userData: base64(string(vmUserData))
+
     hardwareProfile: {
       vmSize: vmSize
     }
     osProfile: {
-      computerName: vmName
+      computerName: vmComputerName
       adminUsername: vmAdminUser
       adminPassword: vmAdminPassword
     }
@@ -144,8 +187,8 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   // NOTE: This must be run last because it locks down the VM internet access
   // if you skip the dependsOn of this extension
   // the DSC will most likely fail
-  resource scheduledReboot 'extensions' = {
-    name: 'scheduledReboot'
+  resource sessionhostSetup 'extensions' = {
+    name: 'sessionhost-setup'
     location: location
     tags: tags
 

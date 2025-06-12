@@ -14,17 +14,14 @@ param workSpaceName string = ''
 param tokenExpirationTime string
 
 param appGroupName string
-param servicesSubnetResourceId string
-param privateLinkZoneName string
-param tags object
+param avdEndpointsSubnetId string
+param privateDnsZoneId string
 
-var privateEndpointZoneLinkName = 'default'
-var privateEndpointConnectionName = 'schoolyear-secure-endpoint-connection'
-var privateEndpointConnectionNicName = '${privateEndpointConnectionName}-nic'
-var privateEndpointConnectionZoneLinkName = '${privateEndpointConnectionName}/${privateEndpointZoneLinkName}'
-var privateEndpointFeedName = 'schoolyear-secure-endpoint-feed'
-var privateEndpointFeedNicName = '${privateEndpointFeedName}-nic'
-var privateEndpointFeedZoneLinkName = '${privateEndpointFeedName}/${privateEndpointZoneLinkName}'
+param privateEndpointConnectionName string
+param privateEndpointConnectionLinkName string
+param privateEndpointFeedName string
+param privateEndpointFeedLinkName string
+param tags object
 
 resource hostpool 'Microsoft.DesktopVirtualization/hostPools@2024-04-08-preview' = {
   name: hostpoolName
@@ -80,9 +77,8 @@ resource privateEndpointConnection 'Microsoft.Network/privateEndpoints@2021-05-0
   tags: tags
   properties: {
     subnet: {
-      id: servicesSubnetResourceId
+      id: avdEndpointsSubnetId
     }
-    customNetworkInterfaceName: privateEndpointConnectionNicName
     privateLinkServiceConnections: [
       {
         name: privateEndpointConnectionName
@@ -98,20 +94,19 @@ resource privateEndpointConnection 'Microsoft.Network/privateEndpoints@2021-05-0
 }
 
 resource privateEndpointConnectionZoneLink 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2021-05-01' = {
-  name: privateEndpointConnectionZoneLinkName
+  name: privateEndpointConnectionLinkName
+  parent: privateEndpointConnection
+
   properties: {
     privateDnsZoneConfigs: [
       {
         name: 'privatelink-wvd-microsoft-com'
         properties: {
-          privateDnsZoneId: resourceId('Microsoft.Network/privateDnsZones', privateLinkZoneName)
+          privateDnsZoneId: privateDnsZoneId
         }
       }
     ]
   }
-  dependsOn: [
-    privateEndpointConnection
-  ]
 }
 
 resource privateEndpointFeed 'Microsoft.Network/privateEndpoints@2021-05-01' = {
@@ -121,9 +116,8 @@ resource privateEndpointFeed 'Microsoft.Network/privateEndpoints@2021-05-01' = {
 
   properties: {
     subnet: {
-      id: servicesSubnetResourceId
+      id: avdEndpointsSubnetId
     }
-    customNetworkInterfaceName: privateEndpointFeedNicName
     privateLinkServiceConnections: [
       {
         name: privateEndpointFeedName
@@ -139,23 +133,23 @@ resource privateEndpointFeed 'Microsoft.Network/privateEndpoints@2021-05-01' = {
 }
 
 resource privateEndpointFeedZoneLink 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2021-05-01' = {
-  name: privateEndpointFeedZoneLinkName
+  name: privateEndpointFeedLinkName
+  parent: privateEndpointFeed
+
   properties: {
     privateDnsZoneConfigs: [
       {
         name: 'privatelink-wvd-microsoft-com'
         properties: {
-          privateDnsZoneId: resourceId('Microsoft.Network/privateDnsZones', privateLinkZoneName)
+          privateDnsZoneId: privateDnsZoneId
         }
       }
     ]
   }
-  dependsOn: [
-    privateEndpointFeed
-  ]
 }
 
 output workspaceId string = workSpace.properties.objectId
 output hostpoolId string = hostpool.properties.objectId
+output hostpoolName string = hostpool.name
 output hostpoolRegistrationToken string = reference(hostpoolName).registrationInfo.token
 output appGroupId string = appGroup.id

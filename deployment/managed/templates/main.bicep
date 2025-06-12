@@ -49,8 +49,31 @@ param proxyVmSize string
 param location string
 param avdMetadataLocation string
 param vmSize string
+
+param sessionhostsSubnetId string
+param sessionhostsSubnetIpRange string
+param servicesSubnetId string
+param servicesSubnetIpRange string
+param avdEndpointsSubnetId string
+param avdEndpointsSubnetIpRange string
+param privateDnsZoneId string
+param publicIps array
+
 // Optional tags provided by the customer
 param tags object = {}
+
+// Resource type name prefixes provided by the customer
+param resourceTypeNamePrefixPip string
+param resourceTypeNamePrefixNat string
+param resourceTypeNamePrefixVnet string
+param resourceTypeNamePrefixHp string
+param resourceTypeNamePrefixAg string
+param resourceTypeNamePrefixWs string
+param resourceTypeNamePrefixPep string
+param resourceTypeNamePrefixPdnsLink string
+param resourceTypeNamePrefixNsg string
+param resourceTypeNamePrefixNic string
+param resourceTypeNamePrefixVm string
 
 // A map object of domain names - Azure Private Link Service Ids.
 // Each entry will create a Private Endpoint and connect to an existing Azure Private Link Services.
@@ -67,32 +90,13 @@ var numProxyVms = min(max(
 var templateVersion = '0.0.0'
 var vmCreationTemplateUri = '[[param:vmCreationTemplateUri]]'
 
-var defaultNamingPrefix = resourceGroup().name
-
-// VNET
-var natIpName = '${defaultNamingPrefix}ip'
-var natName = '${defaultNamingPrefix}nat'
-var vnetName = '${defaultNamingPrefix}vnet'
-var vnetSubnetCIDR = '10.0.0.0/19'
-var sessionhostsSubnetCIDR = '10.0.0.0/20'
-var sessionhostsSubnetName = 'sessionhosts'
-var servicesSubnetCIDR = '10.0.16.0/20'
-var servicesSubnetName = 'services'
-var privatelinkZoneName = 'privatelink.wvd.microsoft.com'
-
-// AVD
-var hostpoolName = '${defaultNamingPrefix}pool'
-var appGroupName = '${defaultNamingPrefix}dag'
-var workspaceName = '${defaultNamingPrefix}ws'
+var shortExamId = substring(examId, 0, 6)
 
 // Sessionhosts
 var vmNumberOfInstances = userCapacity
-var vmNamePrefix = 'syvm${substring(examId,0,6)}'
+var vmNamePrefix = '${resourceTypeNamePrefixVm}${shortExamId}'
+var vmComputerNamePrefix = 'syvm${shortExamId}'
 
-var proxyIpName = '${defaultNamingPrefix}proxy-ip'
-var proxyNsgName = '${defaultNamingPrefix}proxy-nsg'
-var proxyNicName = '${defaultNamingPrefix}proxy-nic'
-var proxyVmName = '${defaultNamingPrefix}proxy-vm'
 var proxyInstallScriptUrl = 'https://raw.githubusercontent.com/schoolyear/avd-deployments/main/deployment/proxy_installation.sh'
 var proxyInstallScriptName = 'proxy_installation.sh'
 var trustedProxyBinaryUrl = 'https://install.exams.schoolyear.app/trusted-proxy/latest-linux-amd64'
@@ -108,43 +112,40 @@ var tagsWithVersion = union(tags, {
   Version: templateVersion
 })
 
-// Our network for AVD Deployment, contains VNET, subnets and dns zones / links etc
-module network './network.bicep' = {
-  name: 'network-deployment'
+var privateEndpointConnectionName = 'sy-endpoint-connection'
+var privateEndpointFeedName = 'sy-endpoint-feed'
 
-  params: {
-    location: location
-    natIpName: natIpName
-    natName: natName
-    vnetName: vnetName
-    vnetSubnetCIDR: vnetSubnetCIDR
-    sessionhostsSubnetName: sessionhostsSubnetName
-    sessionhostsSubnetCIDR: sessionhostsSubnetCIDR
-    servicesSubnetName: servicesSubnetName
-    servicesSubnetCIDR: servicesSubnetCIDR
-    privatelinkZoneName: privatelinkZoneName
-    internalServiceLinkIds: internalServiceLinkIds
-    internalServicesPrivateDNSZoneName: internalServicesPrivateDNSZoneName
-    tags: tagsWithVersion
-  }
-}
-
+var hostpoolName = '${resourceTypeNamePrefixHp}${shortExamId}'
+var appGroupName = '${resourceTypeNamePrefixAg}${shortExamId}'
+var workspaceNameWithPrefix = '${resourceTypeNamePrefixWs}${shortExamId}'
+var privateEndpointConnectionNameWithPrefix = '${resourceTypeNamePrefixPep}${privateEndpointConnectionName}'
+var privateEndpointConnectionLinkNameWithPrefix = '${resourceTypeNamePrefixPdnsLink}default'
+var privateEndpointFeedNameWithPrefix = '${resourceTypeNamePrefixPep}${privateEndpointFeedName}'
+var privateEndpointFeedLinkNameWithPrefix = '${resourceTypeNamePrefixPdnsLink}default'
 module avdDeployment './avdDeployment.bicep' = {
   name: 'avd-deployment'
 
   params: {
-    hostpoolName: hostpoolName
     location: location
     avdMetadataLocation: avdMetadataLocation
-    workSpaceName: workspaceName
-    tokenExpirationTime: tokenExpirationTime
+    hostpoolName: hostpoolName
     appGroupName: appGroupName
-    servicesSubnetResourceId: network.outputs.servicesSubnetId
-    privateLinkZoneName: privatelinkZoneName
+    workSpaceName: workspaceNameWithPrefix
+    privateEndpointConnectionName: privateEndpointConnectionNameWithPrefix
+    privateEndpointConnectionLinkName: privateEndpointConnectionLinkNameWithPrefix
+    privateEndpointFeedName: privateEndpointFeedNameWithPrefix
+    privateEndpointFeedLinkName: privateEndpointFeedLinkNameWithPrefix
+    tokenExpirationTime: tokenExpirationTime
+    avdEndpointsSubnetId: avdEndpointsSubnetId
+    privateDnsZoneId: privateDnsZoneId
     tags: tagsWithVersion
   }
 }
 
+var proxyIpName = '${resourceTypeNamePrefixPip}-proxy'
+var proxyNsgName = '${resourceTypeNamePrefixNsg}-proxy'
+var proxyNicName = '${resourceTypeNamePrefixNic}-proxy'
+var proxyVmName = '${resourceTypeNamePrefixVm}-proxy'
 module proxyNetwork 'proxyNetwork.bicep' = {
   name: 'proxyNetwork'
 
@@ -154,7 +155,7 @@ module proxyNetwork 'proxyNetwork.bicep' = {
     proxyNsgName: proxyNsgName
     proxyNicName: proxyNicName
     proxyVmName: proxyVmName
-    servicesSubnetId: network.outputs.servicesSubnetId
+    servicesSubnetId: servicesSubnetId
     numProxyVms: numProxyVms
     tags: tagsWithVersion
   }
@@ -192,7 +193,7 @@ module proxyDeployment 'proxyDeployment.bicep' = {
   }
 }
 
-output publicIps array = network.outputs.ipAddresses
+output publicIps array = publicIps
 output proxyConfig object = {
   domains: [
     // Proxy traffic related to the hostpool of this exam
@@ -211,7 +212,7 @@ output resourceUrlsToDelete array = [
   ...proxyDeployment.outputs.keyVaultRoleAssignmentDeploymentResourceUrls
   proxyDeployment.outputs.proxyDnsEntryDeploymentResourceUrl
 ]
-output hostpoolName string = hostpoolName
+output hostpoolName string = avdDeployment.outputs.hostpoolName
 output vmNumberOfInstances int = vmNumberOfInstances
 output templateVersion string = templateVersion
 output appGroupId string = avdDeployment.outputs.appGroupId
@@ -222,6 +223,10 @@ output appGroupId string = avdDeployment.outputs.appGroupId
 //        ${vmNamePrefix}-1
 //        ${vmNamePrefix}-2
 output vmNamePrefix string = vmNamePrefix
+// Will be used by the BE to prefix internal computer names
+// these are necessary to allow sessionhosts connectivity.
+// depends on how we configured the dynamic group
+output vmComputerNamePrefix string = vmComputerNamePrefix
 
 // the template that is responsible for deploying a single VM
 // needed by the SY backend to initiate VM deployments
@@ -231,7 +236,6 @@ output vmCreationTemplateUri string = vmCreationTemplateUri
 // and do not change per vm
 output vmCreationTemplateCommonInputParameters object = {
   location:  location
-  sessionhostsSubnetId:  network.outputs.sessionHostsSubnetId
   vmTags:  {
     apiBaseUrl: apiBaseUrl
     examId: examId
@@ -241,14 +245,24 @@ output vmCreationTemplateCommonInputParameters object = {
     proxyVmIpAddr: '${proxyNetwork.outputs.proxyNicPrivateIpAddresses[0]}:8080'
     proxyVmIpAddresses: join(map(proxyNetwork.outputs.proxyNicPrivateIpAddresses, ipAddr => '${ipAddr}:8080'), ',')
   }
+  vmUserData: {
+    version: templateVersion
+    avdEndpointsIpRange: avdEndpointsSubnetIpRange
+    servicesIpRange: servicesSubnetIpRange
+  }
   vmSize: vmSize
   vmAdminUser: vmAdminUser
   vmDiskType: 'Premium_LRS'
   vmImageId:  vmCustomImageSourceId
   artifactsLocation:  'https://wvdportalstorageblob.blob.core.windows.net/galleryartifacts/Configuration_1.0.02566.260.zip'
-  hostPoolName:  hostpoolName
+  hostPoolName:  avdDeployment.outputs.hostpoolName
   hostPoolToken:  avdDeployment.outputs.hostpoolRegistrationToken
+  sessionhostsSubnetId:  sessionhostsSubnetId
+  sessionhostsSubnetIpRange: sessionhostsSubnetIpRange
   tags: tagsWithVersion
+  resourceTypeNamePrefixNsg: resourceTypeNamePrefixNsg
+  resourceTypeNamePrefixNic: resourceTypeNamePrefixNic
+  resourceTypeNamePrefixVm: resourceTypeNamePrefixVm
 }
 
 // These urls will not leak any resources at the end of the deployment
