@@ -81,16 +81,6 @@ resource diagnostic 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' =
         }
       }
     ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-        retentionPolicy: {
-          enabled: false
-          days: 0
-        }
-      }
-    ]
   }
 }
 

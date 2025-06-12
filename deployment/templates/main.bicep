@@ -40,7 +40,7 @@ var numProxyVms = min(max(
 
 // NOTE: will be baked in with each release
 var templateVersion = '0.0.0'
-var vmCreationTemplateUri = '[[param:vmCreationTemplateUri]]'
+var vmCreationTemplateUri = 'https://github.com/schoolyear/avd-deployments/releases/latest/download/vmcreation.json'
 
 // all resources are deployed in the region of the resource group
 // the region in which the resource group is created, is configured in the AVD add-on in the Schoolyear admin dashboard

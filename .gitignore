@@ -8,3 +8,4 @@ local/
 *.exe
 .env
 .vs/
+deployment/templates/main.json
