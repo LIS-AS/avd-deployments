@@ -39,7 +39,7 @@ var numProxyVms = min(max(
 ), 10)
 
 // NOTE: will be baked in with each release
-var templateVersion = '0.0.0'
+var templateVersion = '1.0.1'
 var vmCreationTemplateUri = 'https://github.com/schoolyear/avd-deployments/releases/latest/download/vmcreation.json'
 
 // all resources are deployed in the region of the resource group

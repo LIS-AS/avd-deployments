@@ -57,23 +57,7 @@ resource diagnostic 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' =
     workspaceId: logAnalyticsWorkspaceId
     logs: [
       {
-        category: 'Checkpoint'
-        enabled: true
-        retentionPolicy: {
-          enabled: false
-          days: 0
-        }
-      }
-      {
-        category: 'Error'
-        enabled: true
-        retentionPolicy: {
-          enabled: false
-          days: 0
-        }
-      }
-      {
-        category: 'Management'
+        categoryGroup: 'allLogs'
         enabled: true
         retentionPolicy: {
           enabled: false
