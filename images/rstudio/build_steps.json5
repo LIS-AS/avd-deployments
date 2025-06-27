@@ -27,6 +27,15 @@
       "runAsSystem": true,
       "runElevated": true,
       "type": "PowerShell"
+    },
+    {
+      "name": "Install pin to taskbar tool",
+      "inline": [
+        "C:\\imagebuild_resources\\rstudio_install_scripts\\install_tool_pinToTaskbar.ps1"
+      ],
+      "runAsSystem": true,
+      "runElevated": true,
+      "type": "PowerShell"
     }
   ],
   post: []
