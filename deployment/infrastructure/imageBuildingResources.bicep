@@ -1,26 +1,29 @@
 param location string
-param tags object
+
+param imageGalleryTags object
+param imageDefinitionTags object
+param storageAccountTags object
+param managedIdentityTags object
 
 param imageGalleryName string
 param imageDefinitionName string
 param storageAccountName string
 param storageAccountBlobServiceName string
 param storageAccountContainerName string
-param imagebuilderCustomRoleName string
-param imageBuilderCustomRoleDefinitionName string
+param imageBuilderCustomRoleName string
 param managedIdentityName string
 
 resource imageGallery 'Microsoft.Compute/galleries@2022-03-03' = {
   name: imageGalleryName
   location: location
-  tags: tags
+  tags: imageGalleryTags
 }
 
 resource imageDefinition 'Microsoft.Compute/galleries/images@2022-03-03' = {
   name: imageDefinitionName
   parent: imageGallery
   location: location
-  tags: tags
+  tags: imageDefinitionTags
 
   properties: {
     osType: 'Windows'
@@ -47,7 +50,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
   sku: {
     name: 'Standard_LRS'
   }
-  tags: tags
+  tags: storageAccountTags
   properties: {
     accessTier: 'Hot'
     allowBlobPublicAccess: false
@@ -77,24 +80,11 @@ resource container 'Microsoft.Storage/storageAccounts/blobServices/containers@20
   name: storageAccountContainerName
 }
 
-// // Grant the 'Storage Blob Data Contributor' role for the user to the Storage Account
-// var storageBlobDataContributorRoleDefinitionId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
-// resource storageBlobDataContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-//   name: guid(tenant().tenantId, storageAccount.id, userPrincipalId, storageBlobDataContributorRoleDefinitionId)
-//   scope: storageAccount
-
-//   properties: {
-//     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleDefinitionId)
-//     principalId: userPrincipalId
-//     principalType: 'User'
-//   }
-// }
-
 // Managed Identity
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: managedIdentityName
   location: location
-  tags: tags
+  tags: managedIdentityTags
 }
 
 // 'Storage Blob Data Reader' role to the managed identity
@@ -112,10 +102,10 @@ resource managedIdentityStorageBlobDataReaderRoleAssignment 'Microsoft.Authoriza
 
 // Create the custom role definition for 'schoolyearavd-imagebuilder'
 resource customRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
-  name: imageBuilderCustomRoleDefinitionName
+  name: guid(tenant().tenantId, subscription().subscriptionId, imageBuilderCustomRoleName)
 
   properties: {
-    roleName: imagebuilderCustomRoleName
+    roleName: imageBuilderCustomRoleName
     description: 'Custom role for Azure Image Builder service'
     type: 'CustomRole'
     permissions: [
@@ -153,3 +143,5 @@ resource managedIdentityCustomRoleAssignment 'Microsoft.Authorization/roleAssign
 
 output managedIdentityId string = managedIdentity.id
 output imageGalleryName string = imageGallery.name
+output storageAccountName string = storageAccount.name
+output storageAccountContainerName string = container.name

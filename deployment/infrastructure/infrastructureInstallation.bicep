@@ -1,74 +1,79 @@
 targetScope = 'subscription'
 
-param location string = 'germanywestcentral'
-param tags object = {}
+param location string
+param tagsByResource object
+param avdMetadataLocation string
 
 // App registration is created before this installation script is run
-// however we need these params here to automate the 
+// however we need this param here to automate the 
 // necessary role assignment (needs ownership on the subscription)
-param appRegistrationName string
 param appRegistrationServicePrincipalId string
 
 // Resources that may be renamed
-param baseResourceGroupName string = 'rg-sy-base'
+param baseResourceGroupName string
 param dnsZoneName string
 param keyVaultName string
-param imageBuildingResourceGroupName string = 'rg-sy-imagebuilding'
-param imageGalleryName string = 'sig-sy-avd'
-param imageDefinitionName string = 'img-office365'
-param storageAccountName string = 'stsy'
-param storageAccountBlobServiceName string = 'default'
-param storageAccountContainerName string = 'resources'
-param imageBuilderCustomRoleDefinitionName string = 'rd-syavd-imagebuilder'
-param managedIdentityName string = 'mi-sy-imagebuilder'
+param imageBuildingResourceGroupName string
+param imageGalleryName string
+param imageDefinitionName string
+param storageAccountName string
+param storageAccountBlobServiceName string
+param storageAccountContainerName string
+param imageBuilderCustomRoleName string
+param managedIdentityName string
 
 // Network specific
-param networkRgName string = 'rg-sy-exams-network'
-param networkRgLocation string = location
-param natIpName string = 'pip-nat-sy'
-param natName string = 'nat-sy'
-param vnetName string = 'vnet-sy'
-param vnetSubnetCIDR string = '10.0.0.0/19'
-param avdEndpointsSubnetName string = 'avd-endpoints'
-param avdEndpointsSubnetCIDR string = '10.0.0.0/21'
-param sessionhostsSubnetName string = 'sessionhosts'
-param sessionhostsSubnetCIDR string = '10.0.8.0/21'
-param servicesSubnetName string = 'services'
-param servicesSubnetCIDR string = '10.0.16.0/21'
-param privatelinkZoneName string = 'privatelink.wvd.microsoft.com'
+param networkRgName string
+param networkRgLocation string
+param natIpName string
+param natName string
+param vnetName string
+param vnetSubnetCIDR string
+param avdEndpointsSubnetName string
+param avdEndpointsSubnetCIDR string
+param sessionhostsSubnetName string
+param sessionhostsSubnetCIDR string
+param servicesSubnetName string
+param servicesSubnetCIDR string
+param privatelinkZoneName string
 
 // NOTE: Will be baked in with each release
 var version = '0.0.0'
 
 // Always append the version to already provided tags
-var tagsWithVersion = union(tags, {
-  Version: version
-})
+var tagsByResourceWithVersion = reduce(items(tagsByResource), {}, (acc, item) => union(acc, {
+  '${item.key}': union(item.value, {
+    Version: version
+  })
+}))
 
 // Create your main resource group after providers are registered
+var rgTags = tagsByResourceWithVersion[?'Microsoft.Resources/resourceGroups'] ?? {}
 resource baseResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: baseResourceGroupName
   location: location
-  tags: tagsWithVersion
+  tags: rgTags
 }
 
 // DNS Zone deployment
+var dnsZoneTags = tagsByResourceWithVersion[?'Microsoft.Network/dnsZones'] ?? {}
 module dnsZone 'dnsDeployment.bicep' = {
   scope: baseResourceGroup
 
   params : {
     dnsZoneName: dnsZoneName
-    tags: tagsWithVersion
+    dnsZoneTags: dnsZoneTags
   }
 }
 
 // KeyVault Deployment
+var keyVaultTags = tagsByResourceWithVersion[?'Microsoft.KeyVault/vaults'] ?? {}
 module keyVaultDeployment 'keyVaultDeployment.bicep' = {
   scope: baseResourceGroup
 
   params: {
     keyVaultName: keyVaultName 
-    tags: tagsWithVersion
+    keyVaultTags: keyVaultTags
   }
 }
 
@@ -78,7 +83,7 @@ var ownerRoleDefinitionId = '8e3af657-a8ff-443c-a75c-2fe8c4bcb635'
 resource appRegistrationServicePrincipalRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: subscription()
 
-  name: guid(tenant().tenantId, subscription().id, appRegistrationName, ownerRoleDefinitionId)
+  name: guid(tenant().tenantId, subscription().id, appRegistrationServicePrincipalId, ownerRoleDefinitionId)
   properties: {
     principalId: appRegistrationServicePrincipalId
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', ownerRoleDefinitionId)
@@ -89,25 +94,29 @@ resource appRegistrationServicePrincipalRoleAssignment 'Microsoft.Authorization/
 resource imageBuildingResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: imageBuildingResourceGroupName
   location: location
-  tags: tagsWithVersion
+  tags: rgTags
 }
 
 // Image building resources
-var subscriptionShortId = substring(last(split(subscription().id, '-')), 0, 4)
-var imagebuilderCustomRoleName = 'schoolyearavd-imagebuilder-${subscriptionShortId}'
+var imageGalleryTags = tagsByResourceWithVersion[?'Microsoft.Compute/galleries'] ?? {}
+var imageDefinitionTags = tagsByResourceWithVersion[?'Microsoft.Compute/galleries/images'] ?? {}
+var storageAccountTags = tagsByResourceWithVersion[?'Microsoft.Storage/storageAccounts'] ?? {}
+var managedIdentityTags = tagsByResourceWithVersion[?'Microsoft.ManagedIdentity/userAssignedIdentities'] ?? {}
 module imageBuildingResources 'imageBuildingResources.bicep' = {
   scope: imageBuildingResourceGroup
 
   params: {
     location: location
-    tags: tags
+    imageGalleryTags: imageGalleryTags
+    imageDefinitionTags: imageDefinitionTags
+    storageAccountTags: storageAccountTags
+    managedIdentityTags: managedIdentityTags
     imageGalleryName: imageGalleryName
     imageDefinitionName: imageDefinitionName
     storageAccountName: storageAccountName
     storageAccountBlobServiceName: storageAccountBlobServiceName
     storageAccountContainerName: storageAccountContainerName
-    imagebuilderCustomRoleName: imagebuilderCustomRoleName
-    imageBuilderCustomRoleDefinitionName: imageBuilderCustomRoleDefinitionName
+    imageBuilderCustomRoleName: imageBuilderCustomRoleName
     managedIdentityName: managedIdentityName
   }
 }
@@ -117,15 +126,24 @@ module imageBuildingResources 'imageBuildingResources.bicep' = {
 resource networkResourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: networkRgName
   location: networkRgLocation
-  tags: tagsWithVersion
+  tags: rgTags
 }
 
+var publicIpAddressTags = tagsByResourceWithVersion[?'Microsoft.Network/publicIPAddresses'] ?? {}
+var natTags = tagsByResourceWithVersion[?'Microsoft.Network/natGateways'] ?? {}
+var vnetTags = tagsByResourceWithVersion[?'Microsoft.Network/virtualNetworks'] ?? {}
+var privateDnsZoneTags = tagsByResourceWithVersion[?'Microsoft.Network/privateDnsZones'] ?? {}
+var privateDnsZoneVnetLinkTags = tagsByResourceWithVersion[?'Microsoft.Network/privateDnsZones/virtualNetworkLinks'] ?? {}
 module networkResources 'network.bicep' = {
   scope: networkResourceGroup
 
   params: {
     location: location
-    tags: tagsWithVersion
+    publicIpAddressTags: publicIpAddressTags
+    natTags: natTags
+    vnetTags: vnetTags
+    privateDnsZoneTags: privateDnsZoneTags
+    privateDnsZoneVnetLinkTags: privateDnsZoneVnetLinkTags
     natIpName: natIpName
     natName: natName
     vnetName: vnetName
@@ -152,9 +170,16 @@ output installationOutput object = {
   image_builder_rg_location: imageBuildingResourceGroup.location
   image_builder_managed_identity_name: imageBuildingResources.outputs.managedIdentityId
   image_gallery_name: imageBuildingResources.outputs.imageGalleryName
+  storage_account_name: imageBuildingResources.outputs.storageAccountName
+  storage_account_container_name: imageBuildingResources.outputs.storageAccountContainerName
+  avd_metadata_location: avdMetadataLocation
 
+  tags_by_resource: tagsByResourceWithVersion
+  
   virtual_networks: {
     '${networkResourceGroup.location}': {
+      name: vnetName
+      ip_range: vnetSubnetCIDR
       rg_name: networkResourceGroup.name
       public_ips: networkResources.outputs.ipAddresses
       private_dns_zone_id: networkResources.outputs.privateDnsZoneId
