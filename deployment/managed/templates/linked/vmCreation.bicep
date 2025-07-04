@@ -36,8 +36,7 @@ param msiDownloadUrl string
 
 // NOTE: will be baked in with each release
 var templateVersion = '0.0.0'
-// NOTE: will be baked in with each release
-var autoUpdateScriptLocation = ''
+var sessionhostSetupScriptLocation = ''
 
 @secure()
 param vmAdminPassword string = newGuid()
@@ -182,18 +181,17 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
     }
   }
 
-  // NOTE: This must be run last because it locks down the VM internet access
-  // if you skip the dependsOn of this extension
-  // the DSC will most likely fail
+  // NOTE: On windows VMs we can only have 1 extension per type aka only 1 'CustomScriptExtension'
+  // this is why we put multiple actions into this single extension
   resource sessionhostSetup 'extensions' = {
-    name: 'sessionhost-setup'
+    name: 'sessionhostSetup'
     location: location
     tags: tags
 
     dependsOn: [
-      dsc
       aadLogin
     ]
+
 
     properties: {
       publisher: 'Microsoft.Compute'
@@ -201,7 +199,11 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
       typeHandlerVersion: '1.10'
       autoUpgradeMinorVersion: true
       settings: {
-        commandToExecute: 'powershell -ExecutionPolicy Unrestricted -Command "& { $scriptUrl = \'${autoUpdateScriptLocation}\'; $scriptPath = \'C:\\SessionhostScripts\\auto_update_vdi_browser.ps1\'; Invoke-WebRequest -Uri $scriptUrl -OutFile $scriptPath; & $scriptPath -LatestAgentVersion \'${latestAgentVersion}\' -MsiDownloadUrl \'${msiDownloadUrl}\' -Wait; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Remove-Item -Path $scriptPath -Force; . \'C:\\SessionhostScripts\\sessionhost_setup.ps1\'; Register-ScheduledTask -Action (New-ScheduledTaskAction -Execute \'PowerShell\' -Argument \'-Command Restart-Computer -Force\') -Trigger (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5)) -RunLevel Highest -User System -Force -TaskName \'reboot\' }"'
+        fileUris: [
+          '${sessionhostSetupScriptLocation}'
+        ]
+
+        commandToExecute: 'powershell -ExecutionPolicy Unrestricted -File sessionhostSetup.ps1 -LatestAgentVersion ${latestAgentVersion} -MsiDownloadUrl ${msiDownloadUrl} -Wait'
       }
     }
   }
